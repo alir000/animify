@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Animify · AI Video</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0a0a10;
+    --card: #13131c;
+    --card2: #1b1b28;
+    --accent: #00c9ff;
+    --accent2: #7c6fff;
+    --green: #00e8a2;
+    --red: #ff3c5c;
+    --yellow: #ffd60a;
+    --text: #f0f0f8;
+    --sub: #7070a0;
+    --border: rgba(255,255,255,0.07);
+    --r: 18px;
+  }
+
+  html, body { min-height: 100%; background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; }
+
+  .shell {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 40px;
+  }
+
+  .topbar { padding: 20px 20px 10px; display: flex; align-items: center; justify-content: space-between; }
+  .logo {
+    font-weight: 900; font-size: 1.5rem; letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .powered-badge {
+    background: var(--card2); border: 1.5px solid rgba(0,201,255,0.25);
+    color: var(--accent); font-size: 0.68rem; font-weight: 700;
+    padding: 5px 12px; border-radius: 20px;
+  }
+
+  .section { padding: 0 16px; margin-bottom: 16px; }
+  .sec-label {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--sub); margin-bottom: 8px; padding-left: 2px;
+  }
+
+  /* KEY */
+  .key-wrap {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 14px; padding: 13px 14px; transition: border-color 0.2s;
+  }
+  .key-wrap:focus-within { border-color: rgba(0,201,255,0.4); }
+  .key-wrap input {
+    flex: 1; background: none; border: none; color: var(--text);
+    font-family: 'Outfit', sans-serif; font-size: 0.88rem; outline: none; min-width: 0;
+  }
+  .key-wrap input::placeholder { color: var(--sub); }
+  .key-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--sub); flex-shrink: 0; transition: all 0.3s; }
+  .key-dot.ok { background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .key-hint { font-size: 0.68rem; color: var(--sub); padding: 5px 2px 0; line-height: 1.6; }
+  .key-hint a { color: var(--accent); text-decoration: none; }
+
+  /* MODEL SELECTOR */
+  .model-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .model-card {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .model-card:active { transform: scale(0.97); }
+  .model-card.active {
+    border-color: var(--accent);
+    background: rgba(0,201,255,0.08);
+  }
+  .model-card.active::after {
+    content: '✓';
+    position: absolute;
+    top: 8px; right: 10px;
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: var(--accent);
+  }
+
+  .model-icon { font-size: 1.4rem; margin-bottom: 5px; }
+  .model-name { font-size: 0.82rem; font-weight: 700; color: var(--text); }
+  .model-desc { font-size: 0.65rem; color: var(--sub); margin-top: 2px; line-height: 1.4; }
+  .model-tag {
+    display: inline-block;
+    margin-top: 5px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: rgba(0,201,255,0.12);
+    color: var(--accent);
+  }
+  .model-tag.fast { background: rgba(0,232,162,0.12); color: var(--green); }
+  .model-tag.premium { background: rgba(255,214,10,0.12); color: var(--yellow); }
+
+  /* PHOTO */
+  .photo-zone {
+    width: 100%; aspect-ratio: 16/10; border-radius: var(--r);
+    border: 2px dashed rgba(0,201,255,0.2); background: var(--card);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; overflow: hidden;
+    transition: border-color 0.25s, background 0.25s;
+  }
+  .photo-zone.has-img { border-style: solid; border-color: rgba(255,255,255,0.08); }
+  .photo-zone.drag-over { border-color: var(--accent); background: rgba(0,201,255,0.05); }
+  .photo-zone input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .photo-ph { text-align: center; pointer-events: none; color: var(--sub); }
+  .photo-ph .icon { font-size: 3rem; margin-bottom: 10px; }
+  .photo-ph p { font-size: 0.88rem; font-weight: 600; }
+  .photo-ph small { font-size: 0.72rem; opacity: 0.55; }
+  #photoPreview {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; display: none; border-radius: calc(var(--r) - 2px);
+  }
+  .change-lbl {
+    position: absolute; bottom: 10px; right: 10px;
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+    color: #fff; font-size: 0.7rem; font-weight: 700;
+    padding: 5px 12px; border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.12);
+    display: none; pointer-events: none; z-index: 2;
+  }
+  .photo-zone.has-img .change-lbl { display: block; }
+
+  /* PROMPT */
+  .prompt-box {
+    width: 100%; background: var(--card); border: 1.5px solid var(--border);
+    border-radius: var(--r); color: var(--text); font-family: 'Outfit', sans-serif;
+    font-size: 0.95rem; padding: 14px 16px; resize: none; outline: none;
+    min-height: 100px; line-height: 1.55; transition: border-color 0.2s;
+  }
+  .prompt-box::placeholder { color: var(--sub); }
+  .prompt-box:focus { border-color: rgba(0,201,255,0.4); }
+
+  /* SETTINGS */
+  .settings-row { display: flex; gap: 10px; }
+  .sgroup { flex: 1; background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; padding: 12px 13px; }
+  .sgroup label { display: block; font-size: 0.62rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--sub); margin-bottom: 8px; }
+  .chip-row { display: flex; gap: 5px; flex-wrap: wrap; }
+  .schip {
+    padding: 6px 11px; border-radius: 20px; background: var(--card2);
+    border: 1.5px solid var(--border); color: var(--sub); font-size: 0.72rem;
+    font-weight: 700; font-family: 'Outfit', sans-serif; cursor: pointer;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .schip.active { background: rgba(0,201,255,0.15); border-color: var(--accent); color: var(--accent); }
+  .schip:active { transform: scale(0.91); }
+
+  /* GEN BUTTON */
+  .gen-btn {
+    width: 100%; padding: 18px; border-radius: var(--r); border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white; font-family: 'Outfit', sans-serif; font-size: 1.05rem;
+    font-weight: 800; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .gen-btn:active { transform: scale(0.97); opacity: 0.9; }
+  .gen-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none !important; }
+
+  /* STATUS */
+  .status-card {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: var(--r); padding: 20px;
+    display: none; flex-direction: column; gap: 14px;
+  }
+  .status-card.show { display: flex; }
+  .status-header { display: flex; align-items: center; gap: 12px; }
+  .spinner {
+    width: 26px; height: 26px; border: 3px solid rgba(0,201,255,0.15);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.85s linear infinite; flex-shrink: 0;
+  }
+  .spinner.done { border: 3px solid var(--green); animation: none; }
+  .spinner.err  { border: 3px solid var(--red);   animation: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .s-title { font-weight: 700; font-size: 0.95rem; }
+  .s-sub   { font-size: 0.76rem; color: var(--sub); margin-top: 3px; }
+  .prog-track { height: 4px; background: var(--card2); border-radius: 2px; overflow: hidden; }
+  .prog-fill  { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 1s ease; width: 0%; }
+
+  /* RESULT */
+  .result-card { background: var(--card); border: 1.5px solid rgba(0,232,162,0.2); border-radius: var(--r); overflow: hidden; display: none; }
+  .result-card.show { display: block; }
+  #resultVideo { width: 100%; display: block; background: #000; max-height: 320px; object-fit: contain; }
+  .result-actions { padding: 14px 16px; display: flex; gap: 10px; }
+  .dl-btn {
+    flex: 1; padding: 14px; border-radius: 12px; border: none;
+    background: linear-gradient(135deg, var(--green), #00b87a);
+    color: #000; font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 800; cursor: pointer;
+  }
+  .dl-btn:active { transform: scale(0.96); }
+  .new-btn {
+    padding: 14px 18px; border-radius: 12px; border: 1.5px solid var(--border);
+    background: var(--card2); color: var(--text); font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  }
+  .new-btn:active { transform: scale(0.96); }
+
+  .powered { text-align: center; font-size: 0.67rem; color: var(--sub); opacity: 0.45; padding-top: 6px; }
+  .powered a { color: inherit; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--card2); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text); padding: 10px 22px; border-radius: 40px;
+    font-size: 0.82rem; font-weight: 600; opacity: 0;
+    transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 999; white-space: nowrap; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="logo">animify</div>
+    <div class="powered-badge">fal.ai</div>
+  </div>
+
+  <!-- API KEY -->
+  <div class="section">
+    <div class="sec-label">🔑 fal.ai API Key</div>
+    <div class="key-wrap">
+      <input type="password" id="apiKey" placeholder="Paste your fal.ai key…" oninput="onKeyInput()">
+      <div class="key-dot" id="keyDot"></div>
+    </div>
+    <div class="key-hint">
+      👉 <a href="https://fal.ai/dashboard/keys" target="_blank">fal.ai/dashboard/keys</a> — saved automatically &nbsp;|&nbsp;
+      💳 <a href="https://fal.ai/dashboard/billing" target="_blank">Top up balance</a>
+    </div>
+  </div>
+
+  <!-- MODEL SELECTOR -->
+  <div class="section">
+    <div class="sec-label">🎬 AI Model</div>
+    <div class="model-grid" id="modelGrid">
+
+      <div class="model-card active" onclick="pickModel('fal-ai/wan/v2.2/image-to-video', this)">
+        <div class="model-icon">🌊</div>
+        <div class="model-name">WAN 2.2</div>
+        <div class="model-desc">Realistic motion, great detail</div>
+        <span class="model-tag">Balanced</span>
+      </div>
+
+      <div class="model-card" onclick="pickModel('fal-ai/kling-video/v2/master/image-to-video', this)">
+        <div class="model-icon">👑</div>
+        <div class="model-name">Kling v2</div>
+        <div class="model-desc">Best for human motion & dancing</div>
+        <span class="model-tag premium">Premium</span>
+      </div>
+
+      <div class="model-card" onclick="pickModel('fal-ai/luma-dream-machine/image-to-video', this)">
+        <div class="model-icon">✨</div>
+        <div class="model-name">Luma Dream</div>
+        <div class="model-desc">Cinematic camera movements</div>
+        <span class="model-tag">Cinematic</span>
+      </div>
+
+      <div class="model-card" onclick="pickModel('fal-ai/ltx-video/image-to-video', this)">
+        <div class="model-icon">⚡</div>
+        <div class="model-name">LTX Video</div>
+        <div class="model-desc">Fastest generation speed</div>
+        <span class="model-tag fast">Fast</span>
+      </div>
+
+      <div class="model-card" onclick="pickModel('fal-ai/minimax-video/image-to-video', this)">
+        <div class="model-icon">🎥</div>
+        <div class="model-name">Hailuo</div>
+        <div class="model-desc">Smooth & cinematic quality</div>
+        <span class="model-tag">Smooth</span>
+      </div>
+
+      <div class="model-card" onclick="pickModel('fal-ai/cogvideox-5b/image-to-video', this)">
+        <div class="model-icon">🧠</div>
+        <div class="model-name">CogVideoX</div>
+        <div class="model-desc">Open source, creative style</div>
+        <span class="model-tag fast">Free tier</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PHOTO -->
+  <div class="section">
+    <div class="sec-label">📸 Photo</div>
+    <div class="photo-zone" id="photoZone">
+      <input type="file" id="photoInput" accept="image/*" onchange="loadPhoto(this.files[0])">
+      <div class="photo-ph" id="photoPh">
+        <div class="icon">🖼️</div>
+        <p>Tap to choose a photo</p>
+        <small>JPG · PNG · WebP</small>
+      </div>
+      <img id="photoPreview" alt="">
+      <div class="change-lbl">✏️ Change</div>
+    </div>
+  </div>
+
+  <!-- PROMPT -->
+  <div class="section">
+    <div class="sec-label">✍️ What should happen in the video?</div>
+    <textarea class="prompt-box" id="promptText"
+      placeholder="e.g. He dances energetically, smooth hip-hop moves, cinematic lighting…"
+      oninput="updateBtn()"></textarea>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="section">
+    <div class="sec-label">⚙️ Settings</div>
+    <div class="settings-row">
+      <div class="sgroup">
+        <label>Resolution</label>
+        <div class="chip-row" id="resChips">
+          <button class="schip active" onclick="pick('res','480p',this)">480p</button>
+          <button class="schip"        onclick="pick('res','720p',this)">720p</button>
+        </div>
+      </div>
+      <div class="sgroup">
+        <label>Ratio</label>
+        <div class="chip-row" id="ratioChips">
+          <button class="schip active" onclick="pick('ratio','16:9',this)">16:9</button>
+          <button class="schip"        onclick="pick('ratio','9:16',this)">9:16</button>
+          <button class="schip"        onclick="pick('ratio','1:1',this)">1:1</button>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="sgroup" style="width:100%;">
+        <label>⏱ Video Length</label>
+        <div class="chip-row" id="durChips">
+          <button class="schip"        onclick="pick('dur',3,this)">3s</button>
+          <button class="schip"        onclick="pick('dur',5,this)">5s</button>
+          <button class="schip active" onclick="pick('dur',8,this)">8s</button>
+          <button class="schip"        onclick="pick('dur',10,this)">10s</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GENERATE -->
+  <div class="section">
+    <button class="gen-btn" id="genBtn" onclick="generate()" disabled>
+      <span id="genIcon">✨</span>
+      <span id="genText">Generate Video</span>
+    </button>
+  </div>
+
+  <!-- STATUS -->
+  <div class="section">
+    <div class="status-card" id="statusCard">
+      <div class="status-header">
+        <div class="spinner" id="spinner"></div>
+        <div style="flex:1">
+          <div class="s-title" id="sTitle">Starting…</div>
+          <div class="s-sub"   id="sSub">Connecting to fal.ai</div>
+        </div>
+        <div id="elapsedBadge" style="font-family:monospace;font-size:0.8rem;color:var(--accent);font-weight:700;"></div>
+      </div>
+      <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+      <!-- DEBUG LOG -->
+      <div id="debugLog" style="margin-top:10px;background:var(--card2);border-radius:10px;padding:10px;font-family:monospace;font-size:0.7rem;color:#a0a0c0;max-height:140px;overflow-y:auto;display:none;">
+      </div>
+      <button onclick="toggleDebug()" style="margin-top:8px;background:none;border:1px solid var(--border);color:var(--sub);font-size:0.7rem;padding:4px 12px;border-radius:20px;cursor:pointer;font-family:monospace;">
+        🔍 Show debug log
+      </button>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="section">
+    <div class="result-card" id="resultCard">
+      <video id="resultVideo" controls playsinline loop></video>
+      <div class="result-actions">
+        <button class="dl-btn" onclick="downloadVideo()">⬇ Download</button>
+        <button class="new-btn" onclick="resetUI()">🔄 New</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="powered">Powered by <a href="https://fal.ai" target="_blank">fal.ai</a></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  var photoDataUri  = null;
+  var selectedRes   = '480p';
+  var selectedRatio = '16:9';
+  var selectedDur   = 8;
+  var selectedModel = 'fal-ai/wan/v2.2/image-to-video';
+  var videoUrl      = null;
+  var pollTimer     = null;
+
+  // ── RESTORE SAVED KEY ──
+  try {
+    var _saved = localStorage.getItem('fal_api_key');
+    if (_saved && _saved.length > 10) {
+      document.getElementById('apiKey').value = _saved;
+      document.getElementById('keyDot').classList.add('ok');
+    }
+  } catch(e) {}
+  updateBtn();
+
+  function onKeyInput() {
+    try {
+      var k = document.getElementById('apiKey').value.trim();
+      var ok = k.length > 10;
+      document.getElementById('keyDot').classList.toggle('ok', ok);
+      if (ok) localStorage.setItem('fal_api_key', k);
+      else    localStorage.removeItem('fal_api_key');
+    } catch(e) {}
+    updateBtn();
+  }
+
+  function updateBtn() {
+    var key    = document.getElementById('apiKey').value.trim();
+    var prompt = document.getElementById('promptText').value.trim();
+    document.getElementById('genBtn').disabled =
+      !(key.length > 10 && photoDataUri && prompt.length > 2);
+  }
+
+  // ── MODEL PICKER ──
+  function pickModel(modelId, card) {
+    document.querySelectorAll('.model-card').forEach(function(c) { c.classList.remove('active'); });
+    card.classList.add('active');
+    selectedModel = modelId;
+    showToast('✅ ' + card.querySelector('.model-name').textContent + ' selected');
+  }
+
+  // ── PHOTO LOAD ──
+  function loadPhoto(file) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('❌ Please choose an image file'); return; }
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      photoDataUri = ev.target.result;
+      var img = document.getElementById('photoPreview');
+      img.src = photoDataUri;
+      img.style.display = 'block';
+      document.getElementById('photoPh').style.display = 'none';
+      document.getElementById('photoZone').classList.add('has-img');
+      updateBtn();
+      showToast('📸 Photo loaded!');
+    };
+    reader.onerror = function() { showToast('❌ Could not read image'); };
+    reader.readAsDataURL(file);
+  }
+
+  var pz = document.getElementById('photoZone');
+  pz.addEventListener('dragover',  function(e) { e.preventDefault(); pz.classList.add('drag-over'); });
+  pz.addEventListener('dragleave', function()  { pz.classList.remove('drag-over'); });
+  pz.addEventListener('drop', function(e) {
+    e.preventDefault(); pz.classList.remove('drag-over');
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadPhoto(f);
+  });
+
+  // ── SETTINGS ──
+  function pick(type, val, btn) {
+    var sel = type === 'res' ? '#resChips' : type === 'ratio' ? '#ratioChips' : '#durChips';
+    document.querySelectorAll(sel + ' .schip').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    if (type === 'res')   selectedRes   = val;
+    else if (type === 'ratio') selectedRatio = val;
+    else selectedDur = val;
+  }
+
+  // ── GENERATE ──
+  function generate() {
+    var apiKey = document.getElementById('apiKey').value.trim();
+    var prompt = document.getElementById('promptText').value.trim();
+    if (!apiKey || !photoDataUri || !prompt) return;
+
+    setGenState(true);
+    document.getElementById('statusCard').classList.add('show');
+    document.getElementById('resultCard').classList.remove('show');
+    setStatus('loading', 'Submitting…', 'Sending to fal.ai · ' + getModelName());
+    setProgress(10);
+
+    var queueUrl = 'https://queue.fal.run/' + selectedModel;
+
+    var body = JSON.stringify({
+      image_url: photoDataUri,
+      prompt: prompt,
+      resolution: selectedRes,
+      aspect_ratio: selectedRatio,
+      num_frames: selectedDur * 16,
+      frames_per_second: 16,
+      enable_safety_checker: true,
+      enable_prompt_expansion: true
+    });
+
+    fetch(queueUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Key ' + apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: body
+    })
+    .then(function(r) {
+      if (!r.ok) {
+        return r.text().then(function(t) {
+          var msg = t;
+          try { msg = JSON.parse(t).detail || JSON.parse(t).message || t; } catch(e) {}
+          throw new Error('API error ' + r.status + ': ' + msg);
+        });
+      }
+      return r.json();
+    })
+    .then(function(q) {
+      var rid = q.request_id;
+      if (!rid) throw new Error('No request_id returned from fal.ai');
+      setStatus('loading', 'In queue…', 'Waiting for a GPU slot');
+      setProgress(25);
+      startPolling(apiKey, rid);
+    })
+    .catch(function(err) {
+      setStatus('err', 'Failed', String(err.message || err));
+      setGenState(false);
+      showToast('❌ ' + String(err.message || err).substring(0, 70));
+    });
+  }
+
+  var debugVisible = false;
+  function toggleDebug() {
+    debugVisible = !debugVisible;
+    document.getElementById('debugLog').style.display = debugVisible ? 'block' : 'none';
+    document.querySelector('[onclick="toggleDebug()"]').textContent = debugVisible ? '🔍 Hide debug log' : '🔍 Show debug log';
+  }
+
+  function addDebug(msg) {
+    var log = document.getElementById('debugLog');
+    var time = new Date().toLocaleTimeString();
+    log.innerHTML += '<div style="border-bottom:1px solid rgba(255,255,255,0.05);padding:3px 0;">[' + time + '] ' + msg + '</div>';
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function startPolling(apiKey, requestId) {
+    var elapsed   = 0;
+    var base      = 'https://queue.fal.run/' + selectedModel;
+    var statusUrl = base + '/requests/' + requestId + '/status';
+    var resultUrl = base + '/requests/' + requestId;
+    var authHdr   = { 'Authorization': 'Key ' + apiKey };
+
+    addDebug('✅ Request submitted — ID: ' + requestId);
+    addDebug('🔄 Model: ' + getModelName());
+    addDebug('📡 Polling status every 5 seconds…');
+
+    // Live elapsed timer every second
+    var elapsedTimer = setInterval(function() {
+      elapsed++;
+      document.getElementById('elapsedBadge').textContent = elapsed + 's';
+    }, 1000);
+
+    pollTimer = setInterval(function() {
+      addDebug('🔍 Checking status…');
+
+      fetch(statusUrl, { headers: authHdr })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        addDebug('📊 Status: ' + d.status + (d.queue_position != null ? ' | Queue pos: ' + d.queue_position : ''));
+        setProgress(Math.min(88, 15 + elapsed * 0.8));
+
+        if (d.status === 'IN_QUEUE') {
+          var pos = (d.queue_position != null) ? d.queue_position : '?';
+          setStatus('loading', 'In queue…', 'Queue position: ' + pos + ' — waiting for a free GPU');
+          addDebug('⏳ Still in queue — position ' + pos);
+
+        } else if (d.status === 'IN_PROGRESS') {
+          var pct = d.progress_percentage ? Math.round(d.progress_percentage) + '%' : '';
+          setStatus('loading', '🎬 Generating your video…', getModelName() + ' is actively working' + (pct ? ' · ' + pct + ' done' : ''));
+          if (d.logs && d.logs.length) {
+            d.logs.forEach(function(l) { addDebug('📝 ' + (l.message || l)); });
+          }
+
+        } else if (d.status === 'COMPLETED') {
+          clearInterval(pollTimer);
+          clearInterval(elapsedTimer);
+          addDebug('✅ COMPLETED in ' + elapsed + 's — fetching video URL…');
+          fetch(resultUrl, { headers: authHdr })
+          .then(function(r) { return r.json(); })
+          .then(function(res) {
+            var url = null;
+            if (res.video && res.video.url)                              url = res.video.url;
+            else if (res.output && res.output.video && res.output.video.url) url = res.output.video.url;
+            else if (res.outputs && res.outputs[0] && res.outputs[0].url)    url = res.outputs[0].url;
+            if (!url) throw new Error('Video URL missing in response');
+            addDebug('🎉 Video URL received! Loading player…');
+            onSuccess(url);
+          })
+          .catch(function(err) {
+            addDebug('❌ Result fetch error: ' + err.message);
+            setStatus('err', 'Fetch failed', err.message);
+            setGenState(false);
+            showToast('❌ ' + err.message);
+          });
+
+        } else if (d.status === 'FAILED') {
+          clearInterval(pollTimer);
+          clearInterval(elapsedTimer);
+          var reason = d.error || d.detail || 'Generation failed on fal.ai';
+          addDebug('❌ FAILED: ' + reason);
+          setStatus('err', 'Failed', reason);
+          setGenState(false);
+          showToast('❌ ' + reason);
+        }
+      })
+      .catch(function(err) {
+        addDebug('⚠️ Poll error (will retry): ' + err.message);
+      });
+
+    }, 5000);
+  }
+
+  function onSuccess(url) {
+    videoUrl = url;
+    setProgress(100);
+    setStatus('done', '🎉 Video ready!', 'Tap play to preview');
+    var vid = document.getElementById('resultVideo');
+    vid.src = url;
+    document.getElementById('resultCard').classList.add('show');
+    vid.play().catch(function(){});
+    setGenState(false);
+    showToast('🎬 Your video is ready!');
+  }
+
+  function getModelName() {
+    var active = document.querySelector('.model-card.active .model-name');
+    return active ? active.textContent : 'AI';
+  }
+
+  function setGenState(busy) {
+    document.getElementById('genBtn').disabled = busy;
+    document.getElementById('genIcon').textContent = busy ? '⏳' : '✨';
+    document.getElementById('genText').textContent = busy ? 'Generating…' : 'Generate Video';
+  }
+
+  function setStatus(type, title, sub) {
+    var sp = document.getElementById('spinner');
+    sp.className = 'spinner';
+    if (type === 'done') sp.classList.add('done');
+    if (type === 'err')  sp.classList.add('err');
+    document.getElementById('sTitle').textContent = title;
+    document.getElementById('sSub').textContent   = sub;
+  }
+
+  function setProgress(pct) {
+    document.getElementById('progFill').style.width = pct + '%';
+  }
+
+  function resetUI() {
+    if (pollTimer) clearInterval(pollTimer);
+    document.getElementById('statusCard').classList.remove('show');
+    document.getElementById('resultCard').classList.remove('show');
+    setProgress(0);
+    setGenState(false);
+    updateBtn();
+  }
+
+  function downloadVideo() {
+    if (!videoUrl) return;
+    window.open(videoUrl, '_blank');
+    showToast('Long-press video to save to Photos 💾');
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function() { t.classList.remove('show'); }, 3000);
+  }
+</script>
+</body>
+</html>
