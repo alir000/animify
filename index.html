@@ -24,10 +24,10 @@
 
     <!-- Upload -->
     <div class="mb-8">
-        <label class="block text-sm mb-2">📸 Upload Photo <span id="uploadStatus" class="text-emerald-400 text-xs"></span></label>
+        <label class="block text-sm mb-2">📸 Upload Photo <span id="uploadStatus" class="text-xs font-medium"></span></label>
         <input type="file" id="imageInput" accept="image/*" class="hidden">
         <div onclick="document.getElementById('imageInput').click()" 
-             class="border-2 border-dashed border-zinc-700 hover:border-emerald-500 rounded-3xl h-72 flex items-center justify-center cursor-pointer overflow-hidden relative">
+             class="border-2 border-dashed border-zinc-700 hover:border-emerald-500 rounded-3xl h-72 flex items-center justify-center cursor-pointer overflow-hidden">
             <div id="previewContainer" class="hidden w-full h-full">
                 <img id="preview" class="w-full h-full object-contain">
             </div>
@@ -41,8 +41,8 @@
     <!-- Prompt -->
     <div class="mb-8">
         <label class="block text-sm mb-2">✍️ Prompt</label>
-        <textarea id="prompt" rows="4" class="w-full bg-zinc-900 border border-zinc-700 rounded-3xl px-5 py-4 text-base"
-                  placeholder="She is getting fucked doggy style, sensual motion..."></textarea>
+        <textarea id="prompt" rows="4" class="w-full bg-zinc-900 border border-zinc-700 rounded-3xl px-5 py-4"
+                  placeholder="She is getting fucked doggy style with muscular man behind her, sensual rhythmic motion..."></textarea>
     </div>
 
     <!-- Models -->
@@ -77,7 +77,7 @@
     </div>
 
     <button onclick="generateVideo()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-5 rounded-3xl text-xl font-bold">
-        Generate Video
+        Generate Spicy Video
     </button>
 
     <!-- Status -->
@@ -106,8 +106,7 @@
 
     function addDebug(msg) {
         debugMessages.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
-        const log = document.getElementById('debugLog');
-        if (log) log.textContent = debugMessages.join('\n');
+        document.getElementById('debugLog').textContent = debugMessages.join('\n');
     }
 
     function toggleDebug() {
@@ -136,7 +135,7 @@
         });
     }
 
-    // Image Upload + Preview
+    // === FIXED IMAGE UPLOAD ===
     document.getElementById('imageInput').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -144,4 +143,114 @@
         // Preview
         const reader = new FileReader();
         reader.onload = (ev) => {
-           
+            document.getElementById('preview').src = ev.target.result;
+            document.getElementById('previewContainer').classList.remove('hidden');
+            document.getElementById('uploadPlaceholder').classList.add('hidden');
+        };
+        reader.readAsDataURL(file);
+
+        const key = document.getElementById('apiKey').value.trim();
+        if (!key) {
+            document.getElementById('uploadStatus').innerHTML = '<span class="text-red-400">Enter API key first</span>';
+            return;
+        }
+
+        document.getElementById('uploadStatus').innerHTML = '<span class="text-yellow-400">Uploading...</span>';
+
+        const form = new FormData();
+        form.append('file', file);
+
+        try {
+            const res = await fetch(`${BASE_URL}/model/uploadMedia`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${key}` },
+                body: form
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const data = await res.json();
+            // Handle different possible response structures
+            uploadedImageUrl = data.url || data.data?.url || data.data?.download_url || data.download_url;
+
+            if (uploadedImageUrl) {
+                document.getElementById('uploadStatus').innerHTML = '<span class="text-emerald-400">✅ Uploaded successfully</span>';
+                addDebug(`Image uploaded → ${uploadedImageUrl.substring(0, 80)}...`);
+            } else {
+                throw new Error("No URL in response");
+            }
+        } catch (err) {
+            document.getElementById('uploadStatus').innerHTML = '<span class="text-red-400">❌ Upload failed</span>';
+            addDebug(`Upload failed: ${err.message}`);
+            console.error(err);
+        }
+    });
+
+    async function generateVideo() {
+        const key = document.getElementById('apiKey').value.trim();
+        const prompt = document.getElementById('prompt').value.trim();
+
+        if (!key) return alert("Enter your Atlas Cloud API key");
+        if (!prompt) return alert("Write a prompt");
+        if (!uploadedImageUrl) return alert("Upload a photo first and wait for ✅ Uploaded successfully");
+
+        saveKey();
+        document.getElementById('status').classList.remove('hidden');
+        document.getElementById('statusText').innerHTML = '🚀 Submitting to Atlas Cloud...';
+        debugMessages = [];
+        addDebug(`Using ${currentModel.name}`);
+
+        try {
+            const res = await fetch(`${BASE_URL}/model/generateVideo`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${key}`
+                },
+                body: JSON.stringify({
+                    model: currentModel.id,
+                    image: uploadedImageUrl,     // or image_url depending on model
+                    prompt: prompt,
+                    resolution: document.getElementById('resolution').value,
+                    duration: parseInt(document.getElementById('duration').value)
+                })
+            });
+
+            const data = await res.json();
+            const jobId = data.id || data.data?.id;
+            if (!jobId) throw new Error("No job ID returned");
+
+            addDebug(`Job started: ${jobId}`);
+
+            for (let i = 0; i < 40; i++) {
+                await new Promise(r => setTimeout(r, 5000));
+                const poll = await fetch(`${BASE_URL}/model/prediction/${jobId}`, {
+                    headers: { 'Authorization': `Bearer ${key}` }
+                });
+                const pData = await poll.json();
+                const status = pData.status || pData.data?.status;
+
+                addDebug(`Poll ${i+1}: ${status}`);
+
+                if (status === "completed" || status === "succeeded") {
+                    const videoUrl = pData.outputs?.[0] || pData.data?.outputs?.[0] || pData.video_url;
+                    document.getElementById('statusText').innerHTML = `🎉 Video Ready!<br><a href="${videoUrl}" target="_blank" class="text-emerald-400 underline">Download Video</a>`;
+                    window.open(videoUrl, '_blank');
+                    return;
+                }
+                if (status === "failed") throw new Error(pData.error || "Generation failed");
+            }
+            throw new Error("Timed out");
+        } catch (e) {
+            document.getElementById('statusText').innerHTML = `❌ ${e.message}`;
+            addDebug(`ERROR: ${e.message}`);
+        }
+    }
+
+    window.onload = () => {
+        loadKey();
+        renderModels();
+    };
+</script>
+</body>
+</html>
