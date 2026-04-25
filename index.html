@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Animify • Atlas Spicy</title>
+    <title>Animify v1 • Atlas Spicy</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: system-ui, sans-serif; }
@@ -12,8 +12,11 @@
 </head>
 <body class="bg-zinc-950 text-white min-h-screen">
 <div class="max-w-2xl mx-auto p-4">
-    <h1 class="text-4xl font-bold mb-1">Animify</h1>
-    <p class="text-emerald-400 mb-6">Atlas Cloud • WAN 2.2 Spicy 🔥</p>
+    <!-- VERSION HEADER -->
+    <div class="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
+        <h1 class="text-4xl font-bold">Animify <span class="text-emerald-400 text-2xl">v1</span></h1>
+        <p class="text-emerald-400">Atlas Cloud • WAN 2.2 Spicy 🔥</p>
+    </div>
 
     <!-- API Key -->
     <div class="mb-6">
@@ -41,8 +44,8 @@
     <!-- Prompt -->
     <div class="mb-8">
         <label class="block text-sm mb-2">✍️ Prompt</label>
-        <textarea id="prompt" rows="4" class="w-full bg-zinc-900 border border-zinc-700 rounded-3xl px-5 py-4"
-                  placeholder="She is getting fucked doggy style with muscular man behind her, sensual rhythmic motion..."></textarea>
+        <textarea id="prompt" rows="4" class="w-full bg-zinc-900 border border-zinc-700 rounded-3xl px-5 py-4 text-base"
+                  placeholder="She is getting fucked doggy style, sensual rhythmic motion..."></textarea>
     </div>
 
     <!-- Models -->
@@ -135,12 +138,11 @@
         });
     }
 
-    // === FIXED IMAGE UPLOAD ===
+    // Image Upload
     document.getElementById('imageInput').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Preview
         const reader = new FileReader();
         reader.onload = (ev) => {
             document.getElementById('preview').src = ev.target.result;
@@ -167,22 +169,18 @@
                 body: form
             });
 
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
             const data = await res.json();
-            // Handle different possible response structures
-            uploadedImageUrl = data.url || data.data?.url || data.data?.download_url || data.download_url;
+            uploadedImageUrl = data.url || data.data?.url || data.download_url || data.image_url;
 
             if (uploadedImageUrl) {
                 document.getElementById('uploadStatus').innerHTML = '<span class="text-emerald-400">✅ Uploaded successfully</span>';
-                addDebug(`Image uploaded → ${uploadedImageUrl.substring(0, 80)}...`);
+                addDebug('Image uploaded successfully');
             } else {
-                throw new Error("No URL in response");
+                throw new Error("No image URL returned");
             }
         } catch (err) {
-            document.getElementById('uploadStatus').innerHTML = '<span class="text-red-400">❌ Upload failed</span>';
-            addDebug(`Upload failed: ${err.message}`);
-            console.error(err);
+            document.getElementById('uploadStatus').innerHTML = '<span class="text-red-400">❌ Failed</span>';
+            addDebug('Upload failed: ' + err.message);
         }
     });
 
@@ -190,26 +188,23 @@
         const key = document.getElementById('apiKey').value.trim();
         const prompt = document.getElementById('prompt').value.trim();
 
-        if (!key) return alert("Enter your Atlas Cloud API key");
+        if (!key) return alert("Enter Atlas Cloud API key");
         if (!prompt) return alert("Write a prompt");
-        if (!uploadedImageUrl) return alert("Upload a photo first and wait for ✅ Uploaded successfully");
+        if (!uploadedImageUrl) return alert("Upload photo first and wait for ✅ Uploaded successfully");
 
         saveKey();
         document.getElementById('status').classList.remove('hidden');
         document.getElementById('statusText').innerHTML = '🚀 Submitting to Atlas Cloud...';
         debugMessages = [];
-        addDebug(`Using ${currentModel.name}`);
+        addDebug(`Model: ${currentModel.name}`);
 
         try {
             const res = await fetch(`${BASE_URL}/model/generateVideo`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${key}`
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
                 body: JSON.stringify({
                     model: currentModel.id,
-                    image: uploadedImageUrl,     // or image_url depending on model
+                    image: uploadedImageUrl,
                     prompt: prompt,
                     resolution: document.getElementById('resolution').value,
                     duration: parseInt(document.getElementById('duration').value)
@@ -218,9 +213,9 @@
 
             const data = await res.json();
             const jobId = data.id || data.data?.id;
-            if (!jobId) throw new Error("No job ID returned");
+            if (!jobId) throw new Error("No job ID");
 
-            addDebug(`Job started: ${jobId}`);
+            addDebug(`Job ID: ${jobId}`);
 
             for (let i = 0; i < 40; i++) {
                 await new Promise(r => setTimeout(r, 5000));
@@ -230,7 +225,7 @@
                 const pData = await poll.json();
                 const status = pData.status || pData.data?.status;
 
-                addDebug(`Poll ${i+1}: ${status}`);
+                addDebug(`Status: ${status}`);
 
                 if (status === "completed" || status === "succeeded") {
                     const videoUrl = pData.outputs?.[0] || pData.data?.outputs?.[0] || pData.video_url;
@@ -238,12 +233,11 @@
                     window.open(videoUrl, '_blank');
                     return;
                 }
-                if (status === "failed") throw new Error(pData.error || "Generation failed");
             }
             throw new Error("Timed out");
         } catch (e) {
             document.getElementById('statusText').innerHTML = `❌ ${e.message}`;
-            addDebug(`ERROR: ${e.message}`);
+            addDebug(`Error: ${e.message}`);
         }
     }
 
