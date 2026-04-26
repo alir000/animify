@@ -243,7 +243,7 @@
 
   <div class="topbar">
     <div class="logo">animify</div>
-    <div style="text-align:right"><div class="badge">Atlas Cloud</div><div style="font-size:0.55rem;color:var(--sub);margin-top:4px;font-family:monospace;">v20260425-2343</div></div>
+    <div style="text-align:right"><div class="badge">Atlas Cloud</div><div style="font-size:0.55rem;color:var(--sub);margin-top:4px;font-family:monospace;">v20260426-0121</div></div>
   </div>
 
   <!-- API KEY -->
@@ -550,50 +550,56 @@
     showToast('✅ ' + card.querySelector('.model-name').textContent + ' selected');
   }
 
-  // ── PHOTO UPLOAD ──
+  // ── PHOTO SELECT ──
+  // Resize image to max 1024px and compress before storing as base64
+  var photoBase64 = null;
+
   function handlePhotoSelect(file) {
     if (!file || !file.type.startsWith('image/')) return;
 
-    // Show preview immediately
+    showUploadStatus('loading', '⏳ Processing image…');
+
     var reader = new FileReader();
     reader.onload = function(e) {
-      document.getElementById('photoPreview').src = e.target.result;
-      document.getElementById('photoPreview').style.display = 'block';
-      document.getElementById('photoPh').style.display = 'none';
-      document.getElementById('photoZone').classList.add('has-img');
+      var img = new Image();
+      img.onload = function() {
+        // Resize to max 1024px on longest side
+        var maxSize = 1024;
+        var w = img.width;
+        var h = img.height;
+        if (w > maxSize || h > maxSize) {
+          if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+          else       { w = Math.round(w * maxSize / h); h = maxSize; }
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // Compress to JPEG quality 0.85 — keeps size small
+        var compressed = canvas.toDataURL('image/jpeg', 0.85);
+        photoBase64 = compressed;
+        imageUrl = compressed;
+
+        document.getElementById('photoPreview').src = compressed;
+        document.getElementById('photoPreview').style.display = 'block';
+        document.getElementById('photoPh').style.display = 'none';
+        document.getElementById('photoZone').classList.add('has-img');
+        var kb = Math.round(compressed.length * 0.75 / 1024);
+        showUploadStatus('ok', '✅ Photo ready! (' + kb + ' KB)');
+        updateBtn();
+        showToast('📸 Photo ready!');
+      };
+      img.onerror = function() {
+        showUploadStatus('err', '❌ Could not load image');
+      };
+      img.src = e.target.result;
+    };
+    reader.onerror = function() {
+      showUploadStatus('err', '❌ Could not read image');
     };
     reader.readAsDataURL(file);
-
-    // Upload to Atlas Cloud storage
-    var key = document.getElementById('apiKey').value.trim();
-    if (!key) { showUploadStatus('err', '❌ Paste your API key first'); return; }
-
-    showUploadStatus('loading', '⏳ Uploading image to Atlas Cloud…');
-    imageUrl = null;
-    updateBtn();
-
-    var fd = new FormData();
-    fd.append('file', file);
-
-    fetch(BASE + '/model/uploadMedia', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + key },
-      body: fd
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var url = (data.data && data.data.download_url)
-             || data.download_url || data.url || data.image_url;
-      if (!url) throw new Error('No URL in upload response: ' + JSON.stringify(data).substring(0,100));
-      imageUrl = url;
-      showUploadStatus('ok', '✅ Photo uploaded successfully!');
-      updateBtn();
-      showToast('📸 Photo ready!');
-    })
-    .catch(function(err) {
-      showUploadStatus('err', '❌ Upload failed: ' + err.message);
-      showToast('❌ Upload failed');
-    });
   }
 
   function showUploadStatus(type, msg) {
