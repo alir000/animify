@@ -243,7 +243,7 @@
 
   <div class="topbar">
     <div class="logo">animify</div>
-    <div style="text-align:right"><div class="badge">Atlas Cloud</div><div style="font-size:0.55rem;color:var(--sub);margin-top:4px;font-family:monospace;">v20260426-0121</div></div>
+    <div style="text-align:right"><div class="badge">Atlas Cloud</div><div style="font-size:0.55rem;color:var(--sub);margin-top:4px;font-family:monospace;">v20260426-0134</div></div>
   </div>
 
   <!-- API KEY -->
@@ -643,8 +643,57 @@
     document.getElementById('statusCard').classList.add('show');
     document.getElementById('resultCard').classList.remove('show');
     document.getElementById('debugLog').innerHTML = '';
+    setStatus('loading', 'Uploading image…', 'Sending to Atlas Cloud');
+    setProgress(5);
+
+    // Upload image first using XHR (works better on iOS than fetch+FormData)
+    // Convert base64 back to blob for upload
+    var base64 = photoBase64;
+    var parts = base64.split(',');
+    var mime = parts[0].match(/:(.*?);/)[1];
+    var bstr = atob(parts[1]);
+    var arr = new Uint8Array(bstr.length);
+    for (var i = 0; i < bstr.length; i++) arr[i] = bstr.charCodeAt(i);
+    var blob = new Blob([arr], { type: mime });
+
+    var fd = new FormData();
+    fd.append('file', blob, 'photo.jpg');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', BASE + '/model/uploadMedia', true);
+    xhr.setRequestHeader('Authorization', 'Bearer ' + apiKey);
+    xhr.onload = function() {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        var data = {};
+        try { data = JSON.parse(xhr.responseText); } catch(e) {}
+        var uploadedUrl = (data.data && data.data.download_url)
+                       || (data.data && data.data.url)
+                       || data.download_url || data.url;
+        if (uploadedUrl) {
+          addDebug('✅ Uploaded: ' + uploadedUrl.substring(0,60) + '…');
+          imageUrl = uploadedUrl;
+          submitGeneration(apiKey, prompt, uploadedUrl);
+        } else {
+          addDebug('⚠️ Upload response: ' + xhr.responseText.substring(0,100));
+          addDebug('📤 Trying base64 directly…');
+          submitGeneration(apiKey, prompt, photoBase64);
+        }
+      } else {
+        addDebug('⚠️ Upload failed ' + xhr.status + ', trying base64…');
+        submitGeneration(apiKey, prompt, photoBase64);
+      }
+    };
+    xhr.onerror = function() {
+      addDebug('⚠️ Upload network error, trying base64…');
+      submitGeneration(apiKey, prompt, photoBase64);
+    };
+    xhr.send(fd);
+  }
+
+  function submitGeneration(apiKey, prompt, imgUrl) {
+
     setStatus('loading', 'Submitting…', 'Sending to Atlas Cloud');
-    setProgress(8);
+    setProgress(15);
 
     // Start elapsed timer
     elapsedSecs = 0;
@@ -657,7 +706,7 @@
     var res = selectedRes || '720P';
     var body = JSON.stringify({
       model: selectedModel,
-      image: imageUrl,
+      image: imgUrl,
       prompt: prompt,
       resolution: res,
       duration: selectedDur,
@@ -666,8 +715,7 @@
     });
 
     addDebug('🚀 Model: ' + selectedModel);
-    addDebug('🖼️ Sending image: ' + (imageUrl ? imageUrl.substring(0,60) + '…' : 'NONE'));
-    addDebug('🖼️ Image URL: ' + imageUrl.substring(0, 60) + '…');
+    addDebug('🖼️ Image: ' + imgUrl.substring(0, 60) + '…');
 
     fetch(BASE + '/model/generateVideo', {
       method: 'POST',
