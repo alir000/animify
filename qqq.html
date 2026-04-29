@@ -118,7 +118,6 @@
   <div class="range-bar-wrap">
     <div class="range-header">
       <span>Day's Range</span>
-      <span id="range-text">—</span>
     </div>
 
     <!-- Bar track with dot -->
@@ -226,7 +225,6 @@
 
       document.getElementById('bar-fill').style.width   = clampedPct + '%';
       document.getElementById('bar-marker').style.left  = clampedPct + '%';
-      document.getElementById('range-text').textContent = '$' + fmt(dayLow) + ' \u2013 $' + fmt(dayHigh);
 
       // % change from open for low, high, current
       const lowPctFromOpen     = openPrice ? ((dayLow     - openPrice) / openPrice) * 100 : null;
