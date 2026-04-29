@@ -39,17 +39,6 @@
       letter-spacing: -2px;
     }
     
-    .market-state {
-      padding: 6px 14px;
-      border-radius: 9999px;
-      font-size: 15px;
-      font-weight: 600;
-    }
-    .market-state.regular { background: #3fb950; color: #0d1117; }
-    .market-state.pre { background: #f5c000; color: #0d1117; }
-    .market-state.post { background: #8b949e; color: #0d1117; }
-    .market-state.closed { background: #f85149; color: #fff; }
-    
     .price-card {
       background: var(--card);
       border: 1px solid #30363d;
@@ -220,10 +209,7 @@
 <body>
   <div class="container">
     <header>
-      <div>
-        <div class="symbol">QQQ</div>
-        <div id="market-state" class="market-state regular">OPEN</div>
-      </div>
+      <div class="symbol">QQQ</div>
       <button id="refresh-btn" onclick="loadData()">Refresh</button>
     </header>
 
@@ -298,13 +284,6 @@
       return sign + fmt(n) + '%';
     };
 
-    function setMarketState(state) {
-      const el = document.getElementById('market-state');
-      const map = { REGULAR: 'OPEN', PRE: 'PRE-MARKET', POST: 'AFTER-HOURS', CLOSED: 'CLOSED' };
-      el.textContent = map[state] || state;
-      el.className = `market-state ${(state || 'closed').toLowerCase()}`;
-    }
-
     async function loadData() {
       const btn = document.getElementById('refresh-btn');
       btn.disabled = true;
@@ -335,8 +314,6 @@
         document.getElementById('change-amount').textContent = (changeAmt >= 0 ? '+' : '') + fmt(changeAmt, 2);
         document.getElementById('change-pct').textContent = ` (${(changeAmt >= 0 ? '+' : '') + fmt(changePct)}%)`;
         changeEl.className = `change ${changeAmt >= 0 ? 'positive' : 'negative'}`;
-
-        setMarketState(state);
 
         // Cards
         document.getElementById('open').textContent = '$' + fmt(openPrice, 2);
