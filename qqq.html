@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QQQ Stock Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dashboard { width: 100%; max-width: 620px; padding: 24px; }
+    .header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .ticker { font-size: 28px; font-weight: 700; color: #ffffff; }
+    .name { font-size: 14px; color: #8b949e; }
+    .current-price-block { margin-bottom: 24px; }
+    .current-price { font-size: 48px; font-weight: 700; letter-spacing: -1px; color: #ffffff; }
+    .change { font-size: 16px; margin-top: 4px; }
+    .change.positive { color: #3fb950; }
+    .change.negative { color: #f85149; }
+    .market-state {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      padding: 2px 8px; border-radius: 4px; margin-left: 10px;
+      vertical-align: middle; letter-spacing: 0.5px;
+    }
+    .market-state.regular { background: #1f6feb; color: #fff; }
+    .market-state.pre     { background: #9e6a03; color: #fff; }
+    .market-state.post    { background: #388bfd33; color: #388bfd; }
+    .market-state.closed  { background: #30363d; color: #8b949e; }
+    .cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px 16px; }
+    .card-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #8b949e; margin-bottom: 8px; }
+    .card-value { font-size: 22px; font-weight: 600; color: #e6edf3; }
+    .range-bar-wrap { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px 16px; margin-bottom: 20px; }
+    .range-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; color: #8b949e; }
+    .range-bar-track { height: 6px; background: #30363d; border-radius: 3px; position: relative; margin-bottom: 6px; }
+    .range-bar-fill { position: absolute; left: 0; top: 0; height: 100%; background: linear-gradient(90deg, #f85149, #3fb950); border-radius: 3px; transition: width 0.5s ease; }
+    .range-bar-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; background: #ffffff; border: 2px solid #0d1117; border-radius: 50%; box-shadow: 0 0 6px rgba(255,255,255,0.4); transition: left 0.5s ease; }
+    .range-labels { display: flex; justify-content: space-between; font-size: 12px; color: #8b949e; margin-top: 4px; }
+    .footer { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #8b949e; }
+    .refresh-btn { background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: background 0.2s; }
+    .refresh-btn:hover { background: #30363d; }
+    .refresh-btn:disabled { opacity: 0.5; cursor: default; }
+    .error-msg { background: #2d1117; border: 1px solid #f85149; border-radius: 8px; padding: 12px 16px; color: #f85149; font-size: 13px; margin-top: 12px; display: none; }
+  </style>
+</head>
+<body>
+<div class="dashboard">
+  <div class="header">
+    <span class="ticker">QQQ</span>
+    <span class="name" id="name">Invesco QQQ Trust</span>
+  </div>
+  <div class="current-price-block">
+    <div class="current-price" id="current-price">—</div>
+    <div class="change" id="change">
+      <span id="change-amount"></span>
+      <span id="change-pct"></span>
+      <span class="market-state" id="market-state"></span>
+    </div>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Open</div>
+      <div class="card-value" id="open">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Day Low</div>
+      <div class="card-value" id="day-low">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Day High</div>
+      <div class="card-value" id="day-high">—</div>
+    </div>
+  </div>
+  <div class="range-bar-wrap">
+    <div class="range-header">
+      <span>Day's Range</span>
+      <span id="range-text">—</span>
+    </div>
+    <div class="range-bar-track">
+      <div class="range-bar-fill" id="bar-fill" style="width:0%"></div>
+      <div class="range-bar-marker" id="bar-marker" style="left:0%"></div>
+    </div>
+    <div class="range-labels">
+      <span id="range-low">Low</span>
+      <span id="range-high">High</span>
+    </div>
+  </div>
+  <div class="footer">
+    <span id="last-updated">—</span>
+    <button class="refresh-btn" id="refresh-btn" onclick="loadData()">↻ Refresh</button>
+  </div>
+  <div class="error-msg" id="error-msg"></div>
+</div>
+
+<script>
+  const SYMBOL = 'QQQ';
+  const PROXY  = 'https://corsproxy.io/?url=';
+
+  const fmt = (n, dec = 2) =>
+    n != null ? Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—';
+
+  function setMarketState(state) {
+    const el = document.getElementById('market-state');
+    const labels = { REGULAR: 'OPEN', PRE: 'PRE-MARKET', POST: 'AFTER-HOURS', POSTPOST: 'AFTER-HOURS', PREPRE: 'CLOSED' };
+    const cls    = { REGULAR: 'regular', PRE: 'pre', POST: 'post', POSTPOST: 'post', PREPRE: 'closed' };
+    el.textContent = labels[state] || state;
+    el.className = 'market-state ' + (cls[state] || 'closed');
+  }
+
+  async function getCrumb() {
+    const url = PROXY + encodeURIComponent('https://query1.finance.yahoo.com/v1/test/getcrumb');
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Could not fetch crumb');
+    return r.text();
+  }
+
+  async function getQuote(crumb) {
+    const apiUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${SYMBOL}&crumb=${encodeURIComponent(crumb)}`;
+    const r = await fetch(PROXY + encodeURIComponent(apiUrl));
+    if (!r.ok) throw new Error('Quote API error: ' + r.status);
+    const data = await r.json();
+    const result = data?.quoteResponse?.result?.[0];
+    if (!result) throw new Error('No quote data returned');
+    return result;
+  }
+
+  async function loadData() {
+    const btn = document.getElementById('refresh-btn');
+    const errEl = document.getElementById('error-msg');
+    btn.disabled = true;
+    btn.textContent = '⟳ Loading…';
+    errEl.style.display = 'none';
+
+    try {
+      const crumb = await getCrumb();
+      const q = await getQuote(crumb);
+
+      const state = q.marketState;
+      let displayPrice = q.regularMarketPrice;
+      let changeAmt    = q.regularMarketChange;
+      let changePct    = q.regularMarketChangePercent;
+
+      if (state === 'PRE' && q.preMarketPrice) {
+        displayPrice = q.preMarketPrice;
+        changeAmt    = q.preMarketChange;
+        changePct    = q.preMarketChangePercent;
+      } else if ((state === 'POST' || state === 'POSTPOST') && q.postMarketPrice) {
+        displayPrice = q.postMarketPrice;
+        changeAmt    = q.postMarketChange;
+        changePct    = q.postMarketChangePercent;
+      }
+
+      document.getElementById('current-price').textContent = '$' + fmt(displayPrice);
+
+      const changeEl = document.getElementById('change');
+      const sign     = changeAmt >= 0 ? '+' : '';
+      document.getElementById('change-amount').textContent = sign + fmt(changeAmt);
+      document.getElementById('change-pct').textContent    = ' (' + sign + fmt(changePct) + '%)';
+      changeEl.className = 'change ' + (changeAmt >= 0 ? 'positive' : 'negative');
+
+      setMarketState(state);
+
+      document.getElementById('open').textContent     = '$' + fmt(q.regularMarketOpen);
+      document.getElementById('day-low').textContent  = '$' + fmt(q.regularMarketDayLow);
+      document.getElementById('day-high').textContent = '$' + fmt(q.regularMarketDayHigh);
+
+      const low  = q.regularMarketDayLow;
+      const high = q.regularMarketDayHigh;
+      const cur  = q.regularMarketPrice;
+      const pct  = high !== low ? ((cur - low) / (high - low)) * 100 : 50;
+      document.getElementById('bar-fill').style.width   = pct + '%';
+      document.getElementById('bar-marker').style.left  = pct + '%';
+      document.getElementById('range-text').textContent = '$' + fmt(low) + ' – $' + fmt(high);
+      document.getElementById('range-low').textContent  = '$' + fmt(low);
+      document.getElementById('range-high').textContent = '$' + fmt(high);
+
+      const now = new Date();
+      document.getElementById('last-updated').textContent =
+        'Updated ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    } catch (e) {
+      errEl.textContent = '⚠ ' + e.message;
+      errEl.style.display = 'block';
+    }
+
+    btn.disabled = false;
+    btn.textContent = '↻ Refresh';
+  }
+
+  loadData();
+  setInterval(loadData, 30000);
+</script>
+</body>
+</html>
