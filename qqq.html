@@ -37,12 +37,48 @@
     .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px 16px; }
     .card-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #8b949e; margin-bottom: 8px; }
     .card-value { font-size: 22px; font-weight: 600; color: #e6edf3; }
+
+    /* Range bar */
     .range-bar-wrap { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px 16px; margin-bottom: 20px; }
     .range-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; color: #8b949e; }
-    .range-bar-track { height: 6px; background: #30363d; border-radius: 3px; position: relative; margin-bottom: 6px; }
+    .range-bar-track { height: 6px; background: #30363d; border-radius: 3px; position: relative; margin-bottom: 0; }
     .range-bar-fill { position: absolute; left: 0; top: 0; height: 100%; background: linear-gradient(90deg, #f85149, #3fb950); border-radius: 3px; transition: width 0.5s ease; }
     .range-bar-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; background: #ffffff; border: 2px solid #0d1117; border-radius: 50%; box-shadow: 0 0 6px rgba(255,255,255,0.4); transition: left 0.5s ease; }
-    .range-labels { display: flex; justify-content: space-between; font-size: 12px; color: #8b949e; margin-top: 4px; }
+
+    /* Current pct label below the dot */
+    .range-current-label-wrap {
+      position: relative;
+      height: 20px;
+      margin-bottom: 4px;
+    }
+    .range-current-label {
+      position: absolute;
+      transform: translateX(-50%);
+      font-size: 10px;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: left 0.5s ease;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .range-current-label.positive { color: #3fb950; }
+    .range-current-label.negative { color: #f85149; }
+
+    /* Low / High labels with pct */
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 2px;
+    }
+    .range-label-group { display: flex; flex-direction: column; gap: 2px; }
+    .range-label-group.right { align-items: flex-end; }
+    .range-pct { font-size: 10px; font-weight: 600; }
+    .range-pct.positive { color: #3fb950; }
+    .range-pct.negative { color: #f85149; }
+
     .footer { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #8b949e; }
     .refresh-btn { background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: background 0.2s; }
     .refresh-btn:hover { background: #30363d; }
@@ -78,20 +114,37 @@
       <div class="card-value" id="day-high">—</div>
     </div>
   </div>
+
   <div class="range-bar-wrap">
     <div class="range-header">
       <span>Day's Range</span>
       <span id="range-text">—</span>
     </div>
+
+    <!-- Bar track with dot -->
     <div class="range-bar-track">
       <div class="range-bar-fill" id="bar-fill" style="width:0%"></div>
       <div class="range-bar-marker" id="bar-marker" style="left:0%"></div>
     </div>
+
+    <!-- % change from open label that floats below the dot -->
+    <div class="range-current-label-wrap">
+      <span class="range-current-label" id="current-pct-label" style="left:0%"></span>
+    </div>
+
+    <!-- Low and High labels with their % from open -->
     <div class="range-labels">
-      <span id="range-low">Low</span>
-      <span id="range-high">High</span>
+      <div class="range-label-group">
+        <span id="range-low">—</span>
+        <span class="range-pct" id="low-pct">—</span>
+      </div>
+      <div class="range-label-group right">
+        <span id="range-high">—</span>
+        <span class="range-pct" id="high-pct">—</span>
+      </div>
     </div>
   </div>
+
   <div class="footer">
     <span id="last-updated">—</span>
     <button class="refresh-btn" id="refresh-btn" onclick="loadData()">&#8635; Refresh</button>
@@ -105,6 +158,12 @@
 
   const fmt = (n, dec = 2) =>
     n != null ? Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—';
+
+  const fmtPct = (n) => {
+    if (n == null) return '—';
+    const sign = n >= 0 ? '+' : '';
+    return sign + fmt(n) + '%';
+  };
 
   function setMarketState(state) {
     const el = document.getElementById('market-state');
@@ -122,7 +181,6 @@
     errEl.style.display = 'none';
 
     try {
-      // Yahoo Finance v8 chart API - returns OHLC + meta, no crumb required
       const apiUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + SYMBOL + '?interval=1d&range=1d&includePrePost=true';
       const res    = await fetch(PROXY + encodeURIComponent(apiUrl));
       if (!res.ok) throw new Error('API request failed: ' + res.status);
@@ -131,20 +189,16 @@
       const result = data?.chart?.result?.[0];
       if (!result) throw new Error('No data returned for ' + SYMBOL);
 
-      const meta   = result.meta;
-      const quote  = result.indicators?.quote?.[0];
+      const meta  = result.meta;
+      const quote = result.indicators?.quote?.[0];
 
-      // Current price (prefer pre/post market if available)
       const state        = meta.marketState || 'CLOSED';
       const regularPrice = meta.regularMarketPrice;
       const prevClose    = meta.chartPreviousClose || meta.previousClose;
-
-      // Open = first candle open from OHLC data
       const openPrice    = quote?.open?.[0] ?? meta.regularMarketOpen ?? null;
       const dayLow       = meta.regularMarketDayLow;
       const dayHigh      = meta.regularMarketDayHigh;
 
-      // Use pre/post market price if available
       let displayPrice = regularPrice;
       if (state === 'PRE'  && meta.preMarketPrice)  displayPrice = meta.preMarketPrice;
       if ((state === 'POST' || state === 'POSTPOST') && meta.postMarketPrice) displayPrice = meta.postMarketPrice;
@@ -152,39 +206,63 @@
       const changeAmt = displayPrice - prevClose;
       const changePct = (changeAmt / prevClose) * 100;
 
-      // Render
+      // Render current price & change
       document.getElementById('current-price').textContent = '$' + fmt(displayPrice);
-
       const changeEl = document.getElementById('change');
       const sign     = changeAmt >= 0 ? '+' : '';
       document.getElementById('change-amount').textContent = sign + fmt(changeAmt);
       document.getElementById('change-pct').textContent    = ' (' + sign + fmt(changePct) + '%)';
       changeEl.className = 'change ' + (changeAmt >= 0 ? 'positive' : 'negative');
-
       setMarketState(state);
 
+      // Render cards
       document.getElementById('open').textContent     = '$' + fmt(openPrice);
       document.getElementById('day-low').textContent  = '$' + fmt(dayLow);
       document.getElementById('day-high').textContent = '$' + fmt(dayHigh);
 
+      // Range bar position
       const pct = (dayHigh !== dayLow) ? ((regularPrice - dayLow) / (dayHigh - dayLow)) * 100 : 50;
-      document.getElementById('bar-fill').style.width   = pct + '%';
-      document.getElementById('bar-marker').style.left  = pct + '%';
-      document.getElementById('range-text').textContent = '$' + fmt(dayLow) + ' – $' + fmt(dayHigh);
-      document.getElementById('range-low').textContent  = '$' + fmt(dayLow);
-      document.getElementById('range-high').textContent = '$' + fmt(dayHigh);
+      const clampedPct = Math.min(Math.max(pct, 0), 100);
 
+      document.getElementById('bar-fill').style.width   = clampedPct + '%';
+      document.getElementById('bar-marker').style.left  = clampedPct + '%';
+      document.getElementById('range-text').textContent = '$' + fmt(dayLow) + ' \u2013 $' + fmt(dayHigh);
+
+      // % change from open for low, high, current
+      const lowPctFromOpen     = openPrice ? ((dayLow     - openPrice) / openPrice) * 100 : null;
+      const highPctFromOpen    = openPrice ? ((dayHigh    - openPrice) / openPrice) * 100 : null;
+      const currentPctFromOpen = openPrice ? ((regularPrice - openPrice) / openPrice) * 100 : null;
+
+      // Low label + pct
+      const lowPctEl = document.getElementById('low-pct');
+      document.getElementById('range-low').textContent = '$' + fmt(dayLow);
+      lowPctEl.textContent  = fmtPct(lowPctFromOpen);
+      lowPctEl.className    = 'range-pct ' + (lowPctFromOpen >= 0 ? 'positive' : 'negative');
+
+      // High label + pct
+      const highPctEl = document.getElementById('high-pct');
+      document.getElementById('range-high').textContent = '$' + fmt(dayHigh);
+      highPctEl.textContent  = fmtPct(highPctFromOpen);
+      highPctEl.className    = 'range-pct ' + (highPctFromOpen >= 0 ? 'positive' : 'negative');
+
+      // Floating current % label below the dot
+      const curLabelEl = document.getElementById('current-pct-label');
+      curLabelEl.textContent = fmtPct(currentPctFromOpen);
+      curLabelEl.style.left  = clampedPct + '%';
+      curLabelEl.className   = 'range-current-label ' + (currentPctFromOpen >= 0 ? 'positive' : 'negative');
+
+      // Timestamp
       const now = new Date();
       document.getElementById('last-updated').textContent =
         'Updated ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     } catch (e) {
-      errEl.textContent = '⚠ ' + e.message;
+      errEl.textContent = '\u26a0 ' + e.message;
       errEl.style.display = 'block';
     }
 
     btn.disabled = false;
-    btn.textContent = '↻ Refresh';
+    btn.textContent = '\u21bb Refresh';
   }
 
   loadData();
