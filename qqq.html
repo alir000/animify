@@ -54,7 +54,7 @@
 <div class="dashboard">
   <div class="header">
     <span class="ticker">QQQ</span>
-    <span class="name" id="name">Invesco QQQ Trust</span>
+    <span class="name">Invesco QQQ Trust</span>
   </div>
   <div class="current-price-block">
     <div class="current-price" id="current-price">—</div>
@@ -94,7 +94,7 @@
   </div>
   <div class="footer">
     <span id="last-updated">—</span>
-    <button class="refresh-btn" id="refresh-btn" onclick="loadData()">↻ Refresh</button>
+    <button class="refresh-btn" id="refresh-btn" onclick="loadData()">&#8635; Refresh</button>
   </div>
   <div class="error-msg" id="error-msg"></div>
 </div>
@@ -110,53 +110,49 @@
     const el = document.getElementById('market-state');
     const labels = { REGULAR: 'OPEN', PRE: 'PRE-MARKET', POST: 'AFTER-HOURS', POSTPOST: 'AFTER-HOURS', PREPRE: 'CLOSED' };
     const cls    = { REGULAR: 'regular', PRE: 'pre', POST: 'post', POSTPOST: 'post', PREPRE: 'closed' };
-    el.textContent = labels[state] || state;
+    el.textContent = labels[state] || state || '';
     el.className = 'market-state ' + (cls[state] || 'closed');
   }
 
-  async function getCrumb() {
-    const url = PROXY + encodeURIComponent('https://query1.finance.yahoo.com/v1/test/getcrumb');
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('Could not fetch crumb');
-    return r.text();
-  }
-
-  async function getQuote(crumb) {
-    const apiUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${SYMBOL}&crumb=${encodeURIComponent(crumb)}`;
-    const r = await fetch(PROXY + encodeURIComponent(apiUrl));
-    if (!r.ok) throw new Error('Quote API error: ' + r.status);
-    const data = await r.json();
-    const result = data?.quoteResponse?.result?.[0];
-    if (!result) throw new Error('No quote data returned');
-    return result;
-  }
-
   async function loadData() {
-    const btn = document.getElementById('refresh-btn');
+    const btn   = document.getElementById('refresh-btn');
     const errEl = document.getElementById('error-msg');
     btn.disabled = true;
-    btn.textContent = '⟳ Loading…';
+    btn.textContent = 'Loading...';
     errEl.style.display = 'none';
 
     try {
-      const crumb = await getCrumb();
-      const q = await getQuote(crumb);
+      // Yahoo Finance v8 chart API - returns OHLC + meta, no crumb required
+      const apiUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + SYMBOL + '?interval=1d&range=1d&includePrePost=true';
+      const res    = await fetch(PROXY + encodeURIComponent(apiUrl));
+      if (!res.ok) throw new Error('API request failed: ' + res.status);
+      const data   = await res.json();
 
-      const state = q.marketState;
-      let displayPrice = q.regularMarketPrice;
-      let changeAmt    = q.regularMarketChange;
-      let changePct    = q.regularMarketChangePercent;
+      const result = data?.chart?.result?.[0];
+      if (!result) throw new Error('No data returned for ' + SYMBOL);
 
-      if (state === 'PRE' && q.preMarketPrice) {
-        displayPrice = q.preMarketPrice;
-        changeAmt    = q.preMarketChange;
-        changePct    = q.preMarketChangePercent;
-      } else if ((state === 'POST' || state === 'POSTPOST') && q.postMarketPrice) {
-        displayPrice = q.postMarketPrice;
-        changeAmt    = q.postMarketChange;
-        changePct    = q.postMarketChangePercent;
-      }
+      const meta   = result.meta;
+      const quote  = result.indicators?.quote?.[0];
 
+      // Current price (prefer pre/post market if available)
+      const state        = meta.marketState || 'CLOSED';
+      const regularPrice = meta.regularMarketPrice;
+      const prevClose    = meta.chartPreviousClose || meta.previousClose;
+
+      // Open = first candle open from OHLC data
+      const openPrice    = quote?.open?.[0] ?? meta.regularMarketOpen ?? null;
+      const dayLow       = meta.regularMarketDayLow;
+      const dayHigh      = meta.regularMarketDayHigh;
+
+      // Use pre/post market price if available
+      let displayPrice = regularPrice;
+      if (state === 'PRE'  && meta.preMarketPrice)  displayPrice = meta.preMarketPrice;
+      if ((state === 'POST' || state === 'POSTPOST') && meta.postMarketPrice) displayPrice = meta.postMarketPrice;
+
+      const changeAmt = displayPrice - prevClose;
+      const changePct = (changeAmt / prevClose) * 100;
+
+      // Render
       document.getElementById('current-price').textContent = '$' + fmt(displayPrice);
 
       const changeEl = document.getElementById('change');
@@ -167,19 +163,16 @@
 
       setMarketState(state);
 
-      document.getElementById('open').textContent     = '$' + fmt(q.regularMarketOpen);
-      document.getElementById('day-low').textContent  = '$' + fmt(q.regularMarketDayLow);
-      document.getElementById('day-high').textContent = '$' + fmt(q.regularMarketDayHigh);
+      document.getElementById('open').textContent     = '$' + fmt(openPrice);
+      document.getElementById('day-low').textContent  = '$' + fmt(dayLow);
+      document.getElementById('day-high').textContent = '$' + fmt(dayHigh);
 
-      const low  = q.regularMarketDayLow;
-      const high = q.regularMarketDayHigh;
-      const cur  = q.regularMarketPrice;
-      const pct  = high !== low ? ((cur - low) / (high - low)) * 100 : 50;
+      const pct = (dayHigh !== dayLow) ? ((regularPrice - dayLow) / (dayHigh - dayLow)) * 100 : 50;
       document.getElementById('bar-fill').style.width   = pct + '%';
       document.getElementById('bar-marker').style.left  = pct + '%';
-      document.getElementById('range-text').textContent = '$' + fmt(low) + ' – $' + fmt(high);
-      document.getElementById('range-low').textContent  = '$' + fmt(low);
-      document.getElementById('range-high').textContent = '$' + fmt(high);
+      document.getElementById('range-text').textContent = '$' + fmt(dayLow) + ' – $' + fmt(dayHigh);
+      document.getElementById('range-low').textContent  = '$' + fmt(dayLow);
+      document.getElementById('range-high').textContent = '$' + fmt(dayHigh);
 
       const now = new Date();
       document.getElementById('last-updated').textContent =
