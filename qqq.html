@@ -100,12 +100,13 @@
       font-weight: 600;
     }
     
-    /* Range Bar */
+    /* Day's Range Bar */
     .range-bar-wrap {
       background: var(--card);
       border: 1px solid #30363d;
       border-radius: 16px;
-      padding: 24px 20px;
+      padding: 24px 20px 20px;
+      position: relative;
     }
     
     .range-header {
@@ -147,11 +148,13 @@
       z-index: 10;
     }
     
-    /* White dot label */
+    /* Floating label ABOVE the white dot - CURRENT PRICE + % FROM OPEN */
     .range-current-label-wrap {
-      position: relative;
-      height: 78px;
-      margin-top: 8px;
+      position: absolute;
+      top: -68px;
+      left: 0;
+      width: 100%;
+      pointer-events: none;
     }
     
     .range-current-label {
@@ -161,26 +164,25 @@
       background: rgba(13, 17, 23, 0.98);
       border: 1px solid #30363d;
       border-radius: 12px;
-      padding: 10px 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-      transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 10px 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
       white-space: nowrap;
-      min-width: 110px;
+      min-width: 130px;
+      line-height: 1.05;
     }
     
     .range-current-label .price {
       display: block;
-      font-size: 26px;
+      font-size: 29px;
       font-weight: 700;
       color: #ffffff;
-      line-height: 1;
+      margin-bottom: 3px;
     }
     
     .range-current-label .pct {
       display: block;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 600;
-      margin-top: 4px;
     }
     
     .range-current-label.positive .pct { color: var(--green); }
@@ -260,7 +262,7 @@
         <div class="range-bar-marker" id="bar-marker" style="left:0%"></div>
       </div>
 
-      <!-- White dot label: current price + % from open -->
+      <!-- Floating label ABOVE the white dot -->
       <div class="range-current-label-wrap">
         <div class="range-current-label" id="current-pct-label" style="left:50%">
           <span class="price">$—</span>
@@ -318,7 +320,6 @@
         const state = meta.marketState || 'CLOSED';
         const regularPrice = meta.regularMarketPrice;
         const prevClose = meta.chartPreviousClose;
-        // Fixed open price (this was the 659.05 bug)
         const openPrice = meta.regularMarketOpen ?? quote.open[0];
 
         let displayPrice = regularPrice;
@@ -354,7 +355,7 @@
         // % from open
         const curPctFromOpen = openPrice ? ((regularPrice - openPrice) / openPrice) * 100 : null;
 
-        // White dot label
+        // Floating label ABOVE the white dot (current price + % from open)
         const label = document.getElementById('current-pct-label');
         label.querySelector('.price').textContent = '$' + fmt(displayPrice, 2);
         const pctSpan = label.querySelector('.pct');
@@ -384,7 +385,6 @@
       btn.textContent = 'Refresh';
     }
 
-    // Load immediately + every 30 seconds
     loadData();
     setInterval(loadData, 30000);
   </script>
